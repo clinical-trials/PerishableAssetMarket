@@ -180,6 +180,26 @@
   .pill{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;border:1px solid var(--rule);border-radius:20px;padding:3px 9px;color:var(--ink-soft)}
   .atable-wrap{width:100%}
 
+  /* view toggle + list view */
+  .vswitch{display:inline-flex;background:var(--surface);border:1px solid var(--rule);border-radius:8px;padding:3px}
+  .vswitch button{background:transparent;border:0;color:var(--ink-soft);padding:6px 12px;border-radius:6px;font-size:12.5px;font-weight:600}
+  .vswitch button.on{background:var(--ink);color:#fff}
+  .llist-wrap{width:100%;overflow-x:auto}
+  .llist{border:1px solid var(--rule);border-radius:12px;overflow:hidden;background:var(--surface);box-shadow:var(--shadow)}
+  .lhead,.lrow{display:grid;grid-template-columns:minmax(150px,2.4fr) 1.4fr 0.9fr 1.1fr 0.9fr 0.8fr auto;gap:12px;align-items:center;padding:11px 16px}
+  .lhead{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);background:var(--paper);border-bottom:1px solid var(--rule)}
+  .lrow{border-bottom:1px solid var(--rule-soft);cursor:pointer}
+  .lrow:last-child{border-bottom:0}
+  .lrow:hover{background:var(--paper)}
+  .lissuer{font-weight:600;font-size:13px}
+  .lplace{font-size:11px;color:var(--ink-soft);margin-left:7px}
+  .lamt{font-family:var(--mono);font-weight:600;font-size:13.5px}
+  .lcd{font-family:var(--mono);font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums}
+  .lcd.urgent{color:var(--danger)}
+  .lnum{font-family:var(--mono);font-size:12px;color:var(--ink-soft)}
+  .bidbtn.sm{padding:6px 13px;font-size:12px}
+  .ny-cite{font-family:var(--mono);font-size:9.5px;color:var(--ink-soft);margin-top:9px;line-height:1.45;word-break:break-word}
+
   /* ---------------- mobile ---------------- */
   @media (max-width: 760px){
     .topbar-in{padding:10px 14px;gap:9px 12px}
@@ -202,6 +222,7 @@
     .p-body{padding:14px}
     .atable-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
     .atable{min-width:600px}
+    .llist{min-width:640px}
     .clock-notes{grid-template-columns:1fr !important}
     #clockViz .mono{font-size:8.5px !important}
     .states{grid-template-columns:repeat(auto-fill,minmax(94px,1fr))}
@@ -257,7 +278,13 @@
         <div class="lede" id="exLede">Capacity that expires if nobody moves it.</div>
         <div class="sub" id="exSub">Each listing is tax-exempt bond capacity on a clock. When the clock runs out, the next deal pays taxable rates. Sorted by time remaining.</div>
       </div>
-      <div class="kicker" id="exStamp"></div>
+      <div style="text-align:right">
+        <div class="vswitch" id="viewSwitch">
+          <button data-view="blocks" class="on">Blocks</button>
+          <button data-view="list">List</button>
+        </div>
+        <div class="kicker" id="exStamp" style="margin-top:8px"></div>
+      </div>
     </div>
     <div id="exchangeMain"></div>
   </section>
@@ -374,7 +401,7 @@ const A = {
   deployForwardDays: 60,
   gicBackwardDays: 60,
 };
-const state = { wedge:'A', jur:'CA', vis:'sealed', dep:'refundable', activeId:null };
+const state = { wedge:'A', jur:'CA', vis:'sealed', dep:'refundable', activeId:null, view:'blocks' };
 
 /* ---- assumptions: staged-edit model + persistence ---- */
 const DEFAULTS = {...A};
@@ -428,10 +455,17 @@ function renderExchange(){
   $('#exStamp').textContent = 'wedge '+state.wedge+' · '+v.win;
   const main = $('#exchangeMain');
 
-  if(state.jur==='ALL'){ renderStates(main); return; }
+  const vs = $('#viewSwitch');
+  if(state.jur==='ALL'){ if(vs) vs.style.display='none'; renderStates(main); return; }
+  if(vs) vs.style.display='';
 
   const sorted=[...LISTINGS].sort((a,b)=>a.expiry-b.expiry);
-  main.innerHTML = '<div class="board">'+sorted.map(l=>{
+  main.innerHTML = (state.view==='list') ? listHTML(sorted, v) : blocksHTML(sorted, v);
+  main.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>openAuction(b.dataset.open));
+}
+
+function blocksHTML(sorted, v){
+  return '<div class="board">'+sorted.map(l=>{
     const tm=TYPEMETA[l.type];
     const urgent = (l.expiry-Date.now()) < 14*DAY;
     const reserve = state.wedge==='A'? l.reserve : l.gicReserve;
@@ -458,17 +492,42 @@ function renderExchange(){
       </div>
     </article>`;
   }).join('')+'</div>';
+}
 
-  main.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>openAuction(b.dataset.open));
+function listHTML(sorted, v){
+  const rows = sorted.map(l=>{
+    const tm=TYPEMETA[l.type];
+    const urgent=(l.expiry-Date.now())<14*DAY;
+    const reserve = state.wedge==='A'? l.reserve : l.gicReserve;
+    return `<div class="lrow" data-open="${l.id}">
+      <div class="lmain"><span class="lissuer">${l.issuer}</span><span class="lplace">${l.place}</span></div>
+      <span class="badge ${tm.cls}">${tm.label}</span>
+      <span class="lamt">${fmt$(l.amt)}</span>
+      <span class="lcd ${urgent?'urgent':''}" data-cd="${l.expiry.getTime()}">${cdText(l.expiry)}</span>
+      <span class="lnum">${reserve.toFixed(2)}%</span>
+      <span class="lnum">${l.bids}/${A.gicMinBidders}</span>
+      <button class="bidbtn sm">Bid</button>
+    </div>`;
+  }).join('');
+  return `<div class="llist-wrap"><div class="llist">
+    <div class="lhead"><span>Issuer</span><span>Type</span><span>Amount</span><span>Expires</span><span>${v.reserveWord}</span><span>Bidders</span><span></span></div>
+    ${rows}
+  </div></div>`;
 }
 
 /* ---------------- 50 STATES + TERRITORIES ---------------- */
 const STATES = ["AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"];
 const TERRITORIES = ["DC","PR","GU","VI","AS","MP"];
 const NY_MARKETS = [
-  {key:'hcr', name:'NYS HCR', full:'Homes &amp; Community Renewal (DHCR / HFA)', scope:'Statewide · 9% + 4%/bond allocator', qap:'https://hcr.ny.gov/qualified-allocation-plan-qap'},
-  {key:'hpd', name:'NYC HPD', full:'Dept. of Housing Preservation &amp; Development', scope:'New York City · credit agency; holds the City of NY QAP', qap:'https://www.nyc.gov/assets/hpd/downloads/pdfs/services/2025-qualified-allocation-plan.pdf'},
-  {key:'hdc', name:'NYC HDC', full:'Housing Development Corporation', scope:'New York City · bond issuer (4%/bond), under the NYC QAP', qap:'https://www.nychdc.com'},
+  {key:'hcr', name:'NYS HCR', full:'Homes &amp; Community Renewal (DHCR / HFA)', scope:'Statewide · 9% + 4%/bond allocator',
+   qap:'https://hcr.ny.gov/qualified-allocation-plan-qap',
+   cite:'Source: NYS Homes &amp; Community Renewal, "Qualified Allocation Plan (QAP)," hcr.ny.gov/qualified-allocation-plan-qap — link verified live 2026-07-21.'},
+  {key:'hpd', name:'NYC HPD', full:'Dept. of Housing Preservation &amp; Development', scope:'New York City · credit agency; holds the City of NY QAP',
+   qap:'https://www.nyc.gov/assets/hpd/downloads/pdfs/services/2025-qualified-allocation-plan.pdf',
+   cite:'Source: NYC Dept. of Housing Preservation &amp; Development, "2025 Low-Income Housing Tax Credit Qualified Allocation Plan (City of New York)," nyc.gov/assets/hpd/.../2025-qualified-allocation-plan.pdf — link verified live 2026-07-21.'},
+  {key:'hdc', name:'NYC HDC', full:'Housing Development Corporation', scope:'New York City · bond issuer (4%/bond), under the NYC QAP',
+   qap:'https://www.nychdc.com',
+   cite:'Source: NYC Housing Development Corporation, nychdc.com (bond issuer; operates under the NYC HPD QAP) — link verified live 2026-07-21.'},
 ];
 function nyPanelHTML(){
   const cards = NY_MARKETS.map(m=>`
@@ -477,6 +536,7 @@ function nyPanelHTML(){
       <div class="ny-full">${m.full}</div>
       <div class="ny-scope">${m.scope}</div>
       <a class="ny-qap" href="${m.qap}" target="_blank" rel="noopener">View QAP ↗</a>
+      <div class="ny-cite">${m.cite}</div>
     </div>`).join('');
   const sel = NY_MARKETS.find(m=>m.key===state.nyMarket);
   const status = sel
@@ -713,6 +773,11 @@ $('#wedgeSwitch').querySelectorAll('button').forEach(b=>b.onclick=()=>{
 $('#jurSwitch').querySelectorAll('button').forEach(b=>b.onclick=()=>{
   state.jur=b.dataset.jur;
   $('#jurSwitch').querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.classList.toggle('amberish',x===b);});
+  renderExchange();
+});
+$('#viewSwitch').querySelectorAll('button').forEach(b=>b.onclick=()=>{
+  state.view=b.dataset.view;
+  $('#viewSwitch').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));
   renderExchange();
 });
 $('#visSeg').querySelectorAll('button').forEach(b=>b.onclick=()=>{state.vis=b.dataset.vis;syncSegs();});
