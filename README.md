@@ -8,11 +8,13 @@ The moat is **encoded compliance + timing**, not a directory of public PDFs: the
 each jurisdiction's rules, runs a legally defensible competitive bid, and back-schedules every
 deadline from the bond's own dates.
 
+**▶️ Live:** https://clinical-trials.github.io/PerishableAssetMarket/ (mobile-friendly)
+
 ## What's in this repo
 
 | Path | What it is |
 |---|---|
-| `prototype/index.html` | Self-contained interactive prototype — open in any browser, no build step. |
+| `index.html` | Self-contained interactive prototype — open in any browser, no build step. |
 | `config/assumptions.yaml` | **Single source of truth** for every uncertain regulatory constant (status-tracked, citation-linked). |
 | `config/README.md` | How the assumptions registry works and how to update it. |
 | `Tax-Exempt-Bond-Bidding-Marketplace-Brief.pdf` | The full 6-page written brief. |
@@ -20,7 +22,7 @@ deadline from the bond's own dates.
 
 ## The prototype
 
-Open `prototype/index.html`. It demonstrates:
+Open `index.html` (or the live link above). It demonstrates:
 
 - **Wedge toggle** — Type A (banks bid loan rate) ↔ Type B (providers bid GIC yield); the whole UI vocabulary swaps.
 - **Jurisdiction** — California / CTCAC live, plus the 50-states-+-territories expansion grid.

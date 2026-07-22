@@ -160,6 +160,43 @@
   .kicker{font-family:var(--mono);font-size:11px;color:var(--ink-soft)}
   .muted{color:var(--ink-soft)}
   .pill{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;border:1px solid var(--rule);border-radius:20px;padding:3px 9px;color:var(--ink-soft)}
+  .atable-wrap{width:100%}
+
+  /* ---------------- mobile ---------------- */
+  @media (max-width: 760px){
+    .topbar-in{padding:10px 14px;gap:9px 12px}
+    .topbar .spacer{display:none}
+    .wordmark{font-size:19px}
+    .ctl{gap:6px}
+    .ctl-label{display:none}
+    .switch{padding:2px}
+    .switch button{padding:6px 9px;font-size:11px}
+    .tabs{padding:0 10px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+    .tabs::-webkit-scrollbar{display:none}
+    .tab{padding:12px 10px 10px;font-size:12.5px;white-space:nowrap}
+    .wrap{padding:18px 14px 64px}
+    .lede{font-size:21px;max-width:none}
+    .sub{max-width:none}
+    .section-head{gap:10px}
+    .board{grid-template-columns:1fr;gap:12px}
+    .grid2{grid-template-columns:1fr}
+    .p-head{padding:12px 14px}
+    .p-body{padding:14px}
+    .atable-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+    .atable{min-width:600px}
+    .clock-notes{grid-template-columns:1fr !important}
+    #clockViz .mono{font-size:8.5px !important}
+    .states{grid-template-columns:repeat(auto-fill,minmax(94px,1fr))}
+  }
+  @media (max-width: 430px){
+    .wordmark small{display:none}
+    .switch button{padding:5px 7px;font-size:10px}
+    .amt{font-size:20px}
+    .clock .t{font-size:18px}
+    .lede{font-size:19px}
+    .p-head{flex-wrap:wrap}
+    .p-head .p-title{width:100%}
+  }
 </style>
 </head>
 <body>
@@ -292,10 +329,12 @@
         <button class="bidbtn" id="aApply" disabled>Apply changes</button>
       </div>
       <div class="p-body" style="padding:6px 10px">
-        <table class="atable">
-          <thead><tr><th>Assumption</th><th>Working value</th><th>Status</th><th>Verify against</th></tr></thead>
-          <tbody id="atbody"></tbody>
-        </table>
+        <div class="atable-wrap">
+          <table class="atable">
+            <thead><tr><th>Assumption</th><th>Working value</th><th>Status</th><th>Verify against</th></tr></thead>
+            <tbody id="atbody"></tbody>
+          </table>
+        </div>
       </div>
       <div id="aExportOut" style="display:none;padding:0 18px 18px"></div>
     </div>
@@ -500,7 +539,7 @@ function renderClocks(){
         <div class="mono" style="position:absolute;right:10px;top:3px;font-size:11px;color:var(--treasury);font-weight:600">◀ GIC bid ← backward ${A.gicBackwardDays}d</div>
      </div>
    </div>
-   <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:10px">
+   <div class="clock-notes" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:10px">
      <div class="note"><b>Deploy window</b> — counts <b>forward</b> from redemption. Freed capacity must land in the next deal within ${A.deployForwardDays} days. Worked example: redemption Apr 1 → target Jun 1.</div>
      <div class="note"><b>GIC bid completion</b> — counts <b>backward</b>. The competitive GIC bid must finish ${A.gicBackwardDays} days <i>before</i> the reference date. Direction + reference date pending source review.</div>
    </div>`;
