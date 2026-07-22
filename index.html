@@ -199,6 +199,11 @@
   .lnum{font-family:var(--mono);font-size:12px;color:var(--ink-soft)}
   .bidbtn.sm{padding:6px 13px;font-size:12px}
   .ny-cite{font-family:var(--mono);font-size:9.5px;color:var(--ink-soft);margin-top:9px;line-height:1.45;word-break:break-word}
+  .nydesk{background:var(--surface);border:1px solid var(--treasury);border-radius:12px;box-shadow:var(--shadow);padding:14px 16px;margin-bottom:18px}
+  .nydesk-row{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+  .vswitch.nyalloc button{font-size:12px}
+  .nydesk-note{font-size:12px;color:var(--ink-soft);margin-top:10px;line-height:1.45}
+  .assump-jur{font-size:12.5px;color:var(--ink);background:var(--ok-bg);border:1px solid #bfd8cd;border-radius:8px;padding:10px 13px;margin-bottom:14px;line-height:1.5}
 
   /* ---------------- mobile ---------------- */
   @media (max-width: 760px){
@@ -207,7 +212,7 @@
     .wordmark{font-size:19px}
     .ctl{gap:6px}
     .ctl-label{display:none}
-    .switch{padding:2px}
+    .switch{padding:2px;flex-wrap:wrap}
     .switch button{padding:6px 9px;font-size:11px}
     .tabs{padding:0 10px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
     .tabs::-webkit-scrollbar{display:none}
@@ -255,6 +260,7 @@
       <span class="ctl-label">Jurisdiction</span>
       <div class="switch" id="jurSwitch">
         <button data-jur="CA" class="on amberish">California · CTCAC</button>
+        <button data-jur="NY">New York</button>
         <button data-jur="ALL">50 states + territories</button>
       </div>
     </div>
@@ -347,7 +353,7 @@
     </div>
     <div class="banner warn" style="margin-bottom:18px">
       <span>⚑</span>
-      <div><b>Reviewed — still unresolved here:</b> a full-text search of the 108-page <b>CTCAC regulations (2026)</b> returned <b>zero</b> hits for carryforward, recycling, redemption, arbitrage, or volume cap. That document governs the tax credit and <b>defers bond timing to CDLAC</b> (referenced 23×). So the clock directions live in the <b>CDLAC Regulations</b> (state) and <b>IRC §146 / Treas. Reg. §1.148‑5</b> (federal) — not the QAP. Values below stay working assumptions until pulled from those sources.</div>
+      <div id="clockBannerText"><b>Reviewed — still unresolved here:</b> a full-text search of the 108-page <b>CTCAC regulations (2026)</b> returned <b>zero</b> hits for carryforward, recycling, redemption, arbitrage, or volume cap. That document governs the tax credit and <b>defers bond timing to CDLAC</b> (referenced 23×). So the clock directions live in the <b>CDLAC Regulations</b> (state) and <b>IRC §146 / Treas. Reg. §1.148‑5</b> (federal) — not the QAP. Values below stay working assumptions until pulled from those sources.</div>
     </div>
     <div class="panel"><div class="p-body"><div id="clockViz"></div></div></div>
   </section>
@@ -364,6 +370,7 @@
     <div class="banner info" style="margin-bottom:16px">
       <span>ⓘ</span><div>Working assumptions, not legal advice. Each row shows where to verify it. Two are owner-asserted legal positions that need counsel sign-off.</div>
     </div>
+    <div class="assump-jur" id="assumpJur"></div>
     <div class="panel">
       <div class="p-head" style="gap:12px;flex-wrap:wrap">
         <span class="p-title">Assumption values</span>
@@ -451,7 +458,10 @@ function fmtDate(dt){ return dt.toLocaleDateString('en-US',{month:'short',day:'n
 /* ---------------- EXCHANGE ---------------- */
 function renderExchange(){
   const v=V();
-  $('#exEyebrow').textContent = 'Live · California '+v.desk;
+  const d=desk();
+  $('#exEyebrow').textContent = (state.jur==='NY')
+    ? 'Live · New York · '+d.market.name+' · '+v.desk
+    : 'Live · California '+v.desk;
   $('#exStamp').textContent = 'wedge '+state.wedge+' · '+v.win;
   const main = $('#exchangeMain');
 
@@ -459,9 +469,23 @@ function renderExchange(){
   if(state.jur==='ALL'){ if(vs) vs.style.display='none'; renderStates(main); return; }
   if(vs) vs.style.display='';
 
-  const sorted=[...LISTINGS].sort((a,b)=>a.expiry-b.expiry);
-  main.innerHTML = (state.view==='list') ? listHTML(sorted, v) : blocksHTML(sorted, v);
+  const sorted=[...listings()].sort((a,b)=>a.expiry-b.expiry);
+  const head = (state.jur==='NY') ? nyDeskHead() : '';
+  main.innerHTML = head + ((state.view==='list') ? listHTML(sorted, v) : blocksHTML(sorted, v));
+  if(state.jur==='NY') main.querySelectorAll('[data-nyalloc]').forEach(b=>b.onclick=()=>{ state.nyMarket=b.dataset.nyalloc; renderExchange(); });
   main.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>openAuction(b.dataset.open));
+}
+function nyDeskHead(){
+  const m=activeMarket();
+  const tabs = NY_MARKETS.map(x=>`<button data-nyalloc="${x.key}" class="${x.key===m.key?'on':''}">${x.name}</button>`).join('');
+  return `<div class="nydesk">
+    <div class="nydesk-row">
+      <div class="vswitch nyalloc">${tabs}</div>
+      <a class="ny-qap" href="${m.qap}" target="_blank" rel="noopener">${m.name} QAP ↗</a>
+    </div>
+    <div class="nydesk-note">${m.full} · ${m.scope}. <b>Why NY differs:</b> ${JUR.NY.uniq} <span class="stt v" style="margin-left:4px">STATE VALUES ASSUMED</span></div>
+    <div class="ny-cite">${m.cite}</div>
+  </div>`;
 }
 
 function blocksHTML(sorted, v){
@@ -529,6 +553,43 @@ const NY_MARKETS = [
    qap:'https://www.nychdc.com',
    cite:'Source: NYC Housing Development Corporation, nychdc.com (bond issuer; operates under the NYC HPD QAP) — link verified live 2026-07-21.'},
 ];
+const NY_LISTINGS = {
+  hcr: [
+    {id:'ny_hfa',  issuer:'NYS Housing Finance Agency (HFA)', place:'Albany, NY', type:'recycle', amt:18_000_000, expiry:inDays(19), reserve:4.55, gicReserve:3.30, bids:1, issuerInterest:true,  redemption:inDays(16)},
+    {id:'ny_htfc', issuer:'Housing Trust Fund Corporation (HTFC)', place:'Albany, NY', type:'carry', amt:11_500_000, expiry:inDays(74), reserve:4.48, gicReserve:3.22, bids:2, issuerInterest:true,  redemption:inDays(71)},
+    {id:'ny_buf',  issuer:'Buffalo Urban Renewal Agency', place:'Buffalo, NY', type:'fresh', amt:5_600_000, expiry:inDays(40), reserve:4.60, gicReserve:3.18, bids:0, issuerInterest:true,  redemption:inDays(37)},
+  ],
+  hpd: [
+    {id:'ny_ella', issuer:'NYC HPD — ELLA program', place:'Bronx, NY', type:'fresh', amt:22_000_000, expiry:inDays(33), reserve:4.42, gicReserve:3.28, bids:2, issuerInterest:true,  redemption:inDays(30)},
+    {id:'ny_mmi',  issuer:'NYC HPD — Mixed Middle Income', place:'Brooklyn, NY', type:'carry', amt:14_800_000, expiry:inDays(58), reserve:4.50, gicReserve:3.20, bids:1, issuerInterest:true,  redemption:inDays(55)},
+    {id:'ny_pres', issuer:'NYC HPD — Preservation', place:'Manhattan, NY', type:'recycle', amt:8_900_000, expiry:inDays(13), reserve:4.58, gicReserve:3.12, bids:0, issuerInterest:true,  redemption:inDays(10)},
+  ],
+  hdc: [
+    {id:'ny_hdc_or',  issuer:'NYC HDC — Open Resolution', place:'New York, NY', type:'recycle', amt:30_000_000, expiry:inDays(26), reserve:4.35, gicReserve:3.35, bids:3, issuerInterest:true,  redemption:inDays(23)},
+    {id:'ny_hdc_nib', issuer:'NYC HDC — New Issue Bond', place:'Queens, NY', type:'fresh', amt:16_500_000, expiry:inDays(48), reserve:4.40, gicReserve:3.26, bids:1, issuerInterest:true,  redemption:inDays(45)},
+    {id:'ny_hdc_mix', issuer:'NYC HDC — Mixed Income', place:'Staten Island, NY', type:'carry', amt:7_200_000, expiry:inDays(90), reserve:4.46, gicReserve:3.24, bids:0, issuerInterest:false, redemption:inDays(87)},
+  ],
+};
+const JUR = {
+  CA: { name:'California',
+        clockNote:'California runs a single volume-cap committee — <b>CDLAC</b> sets the bond-issuance deadline (the tax credit is CTCAC). <b>One QAP.</b>',
+        bondSource:'CDLAC (California Debt Limit Allocation Committee)',
+        uniq:'One credit agency (CTCAC) + one bond-cap committee (CDLAC). A single statewide QAP.' },
+  NY: { name:'New York',
+        clockNote:'New York has <b>no single CDLAC</b> — private-activity volume cap is allocated by statute among issuers, and the issuance deadline is set per allocation. <b>Three separate QAPs</b> (HCR, HPD, HDC).',
+        bondSource:'NY State Finance Law (statutory volume-cap allocation among issuers — no single CDLAC)',
+        uniq:'THREE allocators (NYS HCR statewide + NYC HPD + NYC HDC) and no single bond-cap committee. Three separate QAPs.' },
+};
+function activeMarket(){ return NY_MARKETS.find(m=>m.key===(state.nyMarket||'hcr')) || NY_MARKETS[0]; }
+function listings(){ return state.jur==='NY' ? NY_LISTINGS[state.nyMarket||'hcr'] : LISTINGS; }
+function findListing(id){
+  const all=[...LISTINGS]; Object.values(NY_LISTINGS).forEach(a=>all.push(...a));
+  return all.find(x=>x.id===id);
+}
+function desk(){
+  if(state.jur==='NY'){ const m=activeMarket(); return {name:'New York', label:'New York · '+m.name, jur:JUR.NY, market:m}; }
+  return {name:'California', label:'California · CTCAC', jur:JUR.CA, market:null};
+}
 function nyPanelHTML(){
   const cards = NY_MARKETS.map(m=>`
     <div class="ny-card ${state.nyMarket===m.key?'sel':''}" data-nym="${m.key}">
@@ -581,7 +642,7 @@ function openAuction(id){
 }
 function renderAuction(){
   const v=V();
-  const l = LISTINGS.find(x=>x.id===state.activeId) || LISTINGS[1];
+  const l = findListing(state.activeId) || listings()[0];
   state.activeId=l.id;
   const tm=TYPEMETA[l.type];
   $('#auTitle').textContent = fmt$(l.amt)+' · '+tm.label;
@@ -606,7 +667,7 @@ function renderAuction(){
   const withinRecycle = l.type!=='recycle' ? null : true; // demo: assume within window
   const items = [
     {s:'y', t:'Cross-issuer transfer permitted', m:'Capacity may move between issuers — this is a true exchange.', ref:'legal_foundations'},
-    {s: A.crossIssuerTransfer?'y':'n', t:'Jurisdiction match', m:'Listing is in California; rulebook loaded for CTCAC / CDLAC.', ref:'jurisdiction=CA'},
+    {s: A.crossIssuerTransfer?'y':'n', t:'Jurisdiction match', m: (state.jur==='NY' ? ('Listing is in New York; rulebook loaded for '+desk().market.name+'. Bond timing: '+JUR.NY.bondSource+'.') : 'Listing is in California; rulebook loaded for CTCAC / CDLAC.'), ref: (state.jur==='NY' ? ('NY · '+desk().market.name) : 'jurisdiction=CA')},
     l.type==='recycle'
       ? {s: (A.issuerInterestRequired ? (l.issuerInterest?'y':'n') : 'i'), t:'Issuer-has-interest (recycled authority)',
          m: l.issuerInterest?'Issuer retains the required interest; borrower need not.':'Issuer lacks the required interest — pairing blocked.', ref:'recycle rule'}
@@ -632,6 +693,10 @@ function renderAuction(){
 
 /* ---------------- TWO CLOCKS ---------------- */
 function renderClocks(){
+  const bt=$('#clockBannerText');
+  if(bt){ bt.innerHTML = (state.jur==='NY')
+    ? '<b>New York — a different timing model.</b> '+JUR.NY.clockNote+' The state timing values here are <b>ASSUMED</b> pending NY QAP + statute ingestion; the federal windows are shared with California. QAP links &amp; citations are on the New York desk.'
+    : '<b>Reviewed — still unresolved here:</b> a full-text search of the 108-page <b>CTCAC regulations (2026)</b> returned <b>zero</b> hits for carryforward, recycling, redemption, arbitrage, or volume cap. That document governs the tax credit and <b>defers bond timing to CDLAC</b> (referenced 23×). So the clock directions live in the <b>CDLAC Regulations</b> (state) and <b>IRC §146 / Treas. Reg. §1.148‑5</b> (federal) — not the QAP. Values below stay working assumptions until pulled from those sources.'; }
   const anchorX=55; // % position of redemption on the axis
   const el=$('#clockViz');
   el.innerHTML = `
@@ -684,6 +749,10 @@ function updateApplyState(){
   else setStatus(lastApplied ? ('applied '+lastApplied+(storageOK?' · saved':'')) : 'no changes', !!lastApplied);
 }
 function renderAssumptions(){
+  const aj=$('#assumpJur');
+  if(aj) aj.innerHTML = (state.jur==='NY')
+    ? '<b>Active jurisdiction: New York.</b> '+JUR.NY.uniq+' State timing is <b>ASSUMED</b> pending QAP + statute ingestion — QAP links &amp; citations are on the New York desk. The federal overlay below is shared with California.'
+    : '<b>Active jurisdiction: California.</b> '+JUR.CA.uniq+' Sourced: readiness-to-proceed 180/194 days (CTCAC §10328c); bond-issuance deadline set by CDLAC. The federal overlay below is shared with New York.';
   const num = AROWS.map(r=>{
     const v = (r.k in pending) ? pending[r.k] : A[r.k];
     return `<tr>
@@ -761,6 +830,7 @@ function recomputeAll(){
   renderExchange();
   if($('#auction').classList.contains('on')) renderAuction();
   if($('#clocks').classList.contains('on')) renderClocks();
+  if($('#assumptions').classList.contains('on')) renderAssumptions();
 }
 
 document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>selectTab(t.dataset.tab));
@@ -772,8 +842,9 @@ $('#wedgeSwitch').querySelectorAll('button').forEach(b=>b.onclick=()=>{
 });
 $('#jurSwitch').querySelectorAll('button').forEach(b=>b.onclick=()=>{
   state.jur=b.dataset.jur;
+  if(state.jur==='NY' && !state.nyMarket) state.nyMarket='hcr';
   $('#jurSwitch').querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.classList.toggle('amberish',x===b);});
-  renderExchange();
+  recomputeAll();
 });
 $('#viewSwitch').querySelectorAll('button').forEach(b=>b.onclick=()=>{
   state.view=b.dataset.view;
