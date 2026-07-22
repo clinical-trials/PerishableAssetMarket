@@ -1,0 +1,169 @@
+# ============================================================================
+# assumptions.yaml  --  Regulatory Assumptions Registry (SINGLE SOURCE OF TRUTH)
+# ============================================================================
+# Tax-Exempt Bond Bidding Marketplace  (working name: CapStack)
+#
+# WHAT THIS IS
+#   The Rulebook engine and Countdown engine read their regulatory constants
+#   from THIS file only. Nothing downstream should hard-code a day-count,
+#   window, or bidder-count. Change a value here and the whole system updates.
+#
+# THESE ARE ASSUMPTIONS, NOT LAW
+#   Every entry is a working assumption we build on until it is verified.
+#   None is legal advice. Confirm each against the cited authority (and with
+#   counsel) before any production or real-money use.
+#
+# status enum:
+#   ASSUMED_UNVERIFIED  - working guess, needs confirmation   (default)
+#   USER_ASSERTED       - stated as true by the domain owner; still needs counsel
+#   DESIGN_OPEN         - a product choice not yet made
+#   VERIFIED            - confirmed against authority; safe to rely on
+# ============================================================================
+
+meta:
+  project: "Tax-Exempt Bond Bidding Marketplace"
+  purpose: "Regulatory constants for the Rulebook + Countdown engines."
+  last_updated: "2026-07-21"
+  disclaimer: "Not legal advice. Every entry requires counsel confirmation before production use."
+
+# ---------------------------------------------------------------------------
+# LEGAL FOUNDATIONS  --  the two load-bearing positions the whole model rests on
+# ---------------------------------------------------------------------------
+legal_foundations:
+
+  cross_issuer_transfer:
+    statement: "Expiring cap / recycled authority CAN move across issuers -> this is a true marketplace."
+    value: true
+    status: USER_ASSERTED
+    verify_against: "IRC 146 (volume cap allocation & assignment); applicable state assignment rules"
+    if_false: "Product degrades from a two-sided exchange to a single-issuer scheduling tool."
+
+  platform_operates_auction:
+    statement: "Software may legally operate the competitive bid."
+    value: true
+    status: USER_ASSERTED   # + licensed coverage now in place (see mitigation)
+    posture: "neutral bidding utility (runs the process, gives NO advice) -- NOT a municipal advisor"
+    mitigation: "In-house SEC compliance expert holds and maintains an ACTIVE license and oversees the bid process. Reduces (does not eliminate) the need for external counsel confirmation."
+    verify_against: "SEC / MSRB municipal-advisor rules; arbitrage safe-harbor solicitation requirements"
+    if_false: "Insert a licensed operator (municipal advisor / qualified bidding agent) in the loop."
+
+# ---------------------------------------------------------------------------
+# WINDOWS  --  the expiration clocks on the perishable asset (FEDERAL)
+# ---------------------------------------------------------------------------
+windows:
+
+  carryforward:
+    description: "Unused private-activity volume cap can be carried forward and 'captured' within this window."
+    value_years: 3            # <-- WORKING DEFAULT
+    status: ASSUMED_UNVERIFIED
+    discrepancy: "Owner recollection = 4 years; commonly cited statutory figure = 3 years. RECONCILE."
+    alternatives_years: [3, 4]
+    verify_against: "IRC 146(f); IRS Form 8328"
+    source_note: "NOT in CTCAC Regs 2026 (0 hits, reviewed 2026-07-21). This is the FEDERAL 146(f) volume-cap carryforward -- do NOT conflate with CTCAC 'carryover allocation' (tax-credit, IRC 42(h)(1)(E)), which IS in the CTCAC regs and is a different clock. Confirm via IRC 146(f) + CDLAC regs."
+
+  recycle:
+    description: "Repaid multifamily bond may be re-issued WITHOUT new volume cap within this window."
+    value_months: 6           # <-- WORKING DEFAULT (~6 months)
+    generates_new_4pct_lihtc: false   # recycled bonds do NOT create fresh 4% credits
+    status: ASSUMED_UNVERIFIED
+    verify_against: "IRC 146(i)(6)"
+    source_note: "NOT in CTCAC Regs 2026 (0 hits). Federal provision; confirm via IRC 146(i)(6)."
+
+# ---------------------------------------------------------------------------
+# TRANSFER ELIGIBILITY  --  rules the Rulebook enforces before listing a pairing
+# ---------------------------------------------------------------------------
+transfer_eligibility_rules:
+
+  recycled_authority_issuer_interest:
+    rule: "For recycled authority, the ISSUER must retain a qualifying interest; the BORROWER need not."
+    value: required
+    status: ASSUMED_UNVERIFIED
+    verify_against: "IRC 146(i)(6) and recycling guidance"
+    enforcement: "Rulebook BLOCKS any transfer/pairing where the issuer lacks the required interest."
+
+# ---------------------------------------------------------------------------
+# CLOCKS  --  two DISTINCT clocks. Directions still to be reconciled.
+# ---------------------------------------------------------------------------
+clocks:
+
+  deploy_window:
+    id: recycle_deploy
+    description: "After a bond is redeemed, the freed capacity must be redeployed into the next deal."
+    anchor: bond_redemption_date
+    direction: forward          # runs AFTER the anchor date
+    target_offset_days: 60      # worked example: redemption Apr 1 -> deploy target ~Jun 1
+    status: ASSUMED_UNVERIFIED
+    source_note: "CA bond timing is set by CDLAC ('CDLAC bond issuance deadline', referenced in CTCAC Reg. 10326), NOT the CTCAC QAP. Verify in CDLAC Regulations."
+
+  gic_bid_completion:
+    id: gic_bid_deadline
+    description: "The GIC / investment-agreement bidding must be completed ahead of a reference date."
+    anchor: bond_redemption_date   # CONFIRM whether redemption is the right reference
+    direction: backward         # must COMPLETE BEFORE the anchor date
+    offset_days: 60
+    status: ASSUMED_UNVERIFIED
+    source_note: "Federal arbitrage timing (Treas. Reg. 1.148-5). Not in CTCAC QAP. Reconcile direction vs. deploy_window."
+
+# ---------------------------------------------------------------------------
+# AUCTION RULES
+# ---------------------------------------------------------------------------
+auction_rules:
+
+  gic_min_bidders:
+    description: "Minimum bona-fide bids for the competitive-bid safe harbor."
+    value: 3                    # <-- WORKING DEFAULT
+    condition: "Bids from providers with no material financial interest in the transaction."
+    status: ASSUMED_UNVERIFIED
+    verify_against: "Treas. Reg. 1.148-5(d)(6) (competitively-bid investment safe harbor)"
+    source_note: "NOT in CTCAC Regs 2026 (0 hits). Federal provision."
+
+  reserve_required:
+    description: "A reserve / minimum bid must be met or there is NO award."
+    value: true
+    status: VERIFIED            # design + compliance decision, settled
+
+  buy_it_now_allowed:
+    description: "Fixed-price shortcut. Disallowed -- genuine competition is a compliance requirement."
+    value: false
+    status: VERIFIED            # settled
+
+  bid_visibility:
+    description: "Sealed vs. open bidding."
+    value: [sealed, open]       # BOTH carried into the design for evaluation
+    status: DESIGN_OPEN
+
+  bid_deposit:
+    description: "Anti-flake / seriousness gate to place a bid."
+    amount_usd_range: [500, 1000]
+    refundable: undecided       # refundable OR non-refundable -- both under evaluation
+    status: DESIGN_OPEN
+
+# ---------------------------------------------------------------------------
+# CALIFORNIA (CTCAC) DEADLINES  --  sourced from the 108-page CTCAC regulations
+# ---------------------------------------------------------------------------
+ca_ctcac_deadlines:
+
+  readiness_to_proceed_days:
+    value: [180, 194]
+    extension_days: 90
+    status: VERIFIED
+    source: "CTCAC Regulations 2026, Section 10328(c) -- treasurer.ca.gov, reviewed 2026-07-21"
+    note: "Construction must commence within 180 or 194 days of the Credit reservation; up to a 90-day extension may be granted."
+
+  bond_issuance_deadline:
+    value: "set by CDLAC (not defined in CTCAC regs)"
+    status: ASSUMED_UNVERIFIED
+    source: "CTCAC Reg. Section 10326: documents due 'no later than the CDLAC bond issuance deadline'; a miss = rescission of the Tax Credit Reservation + negative points."
+    verify_against: "CDLAC Regulations (a separate document from the CTCAC QAP)"
+
+# ---------------------------------------------------------------------------
+# SOURCE REVIEW LOG
+# ---------------------------------------------------------------------------
+source_review:
+
+  ctcac_regulations_2026:
+    reviewed_on: "2026-07-21"
+    source: "https://www.treasurer.ca.gov/sites/default/files/2026-03/regulations.pdf (108 pp)"
+    method: "Full-text extract + targeted term search."
+    finding: "Governs the LIHTC tax credit; explicitly DEFERS bond/volume-cap timing to CDLAC (referenced 23x). Zero hits for: carryforward, recycl, guaranteed investment, arbitrage, redemption, volume cap. Uses 'carryover allocation' (tax-credit, IRC 42(h)(1)(E)) -- a different concept."
+    implication: "Federal windows (IRC 146(f), 146(i)(6); Treas.Reg 1.148-5) and CA bond deadlines (CDLAC) are NOT in this document. Next: pull the CDLAC Regulations + the three short federal cites to finish verification."

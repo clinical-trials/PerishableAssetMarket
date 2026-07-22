@@ -1,0 +1,567 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CapStack — Perishable Capacity Exchange (prototype)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0E1B2A; --ink-soft:#3A4A5C; --paper:#E9EDE7; --surface:#FBFCFA;
+    --treasury:#17694F;
+    --amber:#B9701A; --amber-bg:#FBEED8; --danger:#A93325; --danger-bg:#F7E2DE;
+    --rule:#C7D0CB; --rule-soft:#DCE2DC; --ok:#17694F; --ok-bg:#DDEBE4;
+    --mono:'IBM Plex Mono',ui-monospace,monospace;
+    --sans:'IBM Plex Sans',system-ui,sans-serif;
+    --serif:'Fraunces',Georgia,serif;
+    --shadow:0 1px 2px rgba(14,27,42,.06),0 6px 20px rgba(14,27,42,.06);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+  h1,h2,h3{margin:0;font-weight:600}
+  button{font-family:inherit;cursor:pointer}
+  a{color:inherit}
+
+  /* ---- top bar ---- */
+  .topbar{position:sticky;top:0;z-index:20;background:var(--ink);color:#EAF0EC;border-bottom:1px solid #000}
+  .topbar-in{max-width:1180px;margin:0 auto;padding:12px 22px;display:flex;align-items:center;gap:22px;flex-wrap:wrap}
+  .wordmark{font-family:var(--serif);font-weight:600;font-size:23px;letter-spacing:.2px;line-height:1;display:flex;align-items:baseline;gap:9px}
+  .wordmark small{font-family:var(--mono);font-size:10px;font-weight:400;color:#8FA6A0;letter-spacing:.14em;text-transform:uppercase}
+  .topbar .spacer{flex:1}
+  .ctl{display:flex;align-items:center;gap:8px}
+  .ctl-label{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#8FA6A0}
+  .switch{display:inline-flex;background:#0a1420;border:1px solid #24384a;border-radius:8px;padding:3px}
+  .switch button{background:transparent;border:0;color:#9DB2AB;padding:6px 11px;border-radius:6px;font-size:12.5px;font-weight:500;letter-spacing:.01em}
+  .switch button.on{background:var(--treasury);color:#fff}
+  .switch button.on.amberish{background:#2b3f52;color:#fff}
+
+  /* ---- tabs ---- */
+  .tabs{max-width:1180px;margin:0 auto;padding:0 22px;display:flex;gap:2px;border-bottom:1px solid var(--rule)}
+  .tab{background:transparent;border:0;border-bottom:2px solid transparent;padding:14px 15px 12px;color:var(--ink-soft);font-weight:600;font-size:13.5px;display:flex;align-items:center;gap:8px}
+  .tab .n{font-family:var(--mono);font-size:10px;color:var(--ink-soft);opacity:.7}
+  .tab.on{color:var(--ink);border-bottom-color:var(--treasury)}
+  .tab.on .n{color:var(--treasury);opacity:1}
+
+  .wrap{max-width:1180px;margin:0 auto;padding:26px 22px 80px}
+  .view{display:none}
+  .view.on{display:block;animation:fade .25s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+  .eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--treasury);font-weight:500}
+  .lede{font-family:var(--serif);font-size:26px;line-height:1.15;font-weight:600;margin:6px 0 3px;max-width:22ch}
+  .sub{color:var(--ink-soft);max-width:64ch}
+  .section-head{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;flex-wrap:wrap;margin-bottom:20px}
+
+  /* ---- listing cards ---- */
+  .board{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px}
+  .card{background:var(--surface);border:1px solid var(--rule);border-radius:12px;padding:0;box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column}
+  .card-top{padding:16px 17px 13px;border-bottom:1px dashed var(--rule-soft)}
+  .card-row{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+  .issuer{font-weight:600;font-size:14.5px}
+  .place{font-size:12px;color:var(--ink-soft)}
+  .amt{font-family:var(--mono);font-size:23px;font-weight:600;letter-spacing:-.01em;margin-top:9px;line-height:1}
+  .amt small{font-size:11px;color:var(--ink-soft);font-weight:400;letter-spacing:.04em}
+  .badge{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;padding:3px 7px;border-radius:5px;border:1px solid transparent;white-space:nowrap}
+  .b-carry{background:#E4EAF3;color:#2f4a72;border-color:#c9d6e8}
+  .b-recycle{background:#EAE3F1;color:#5a3d78;border-color:#d8cae6}
+  .b-fresh{background:var(--ok-bg);color:var(--treasury);border-color:#bfd8cd}
+  .clock{padding:12px 17px;display:flex;align-items:center;gap:11px;background:linear-gradient(0deg,rgba(185,112,26,.05),transparent)}
+  .clock .lbl{font-family:var(--mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--amber)}
+  .clock .t{font-family:var(--mono);font-size:20px;font-weight:600;color:var(--ink);letter-spacing:.02em}
+  .clock.urgent{background:var(--amber-bg)}
+  .clock.urgent .t{color:var(--danger)}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--amber);flex:none}
+  .clock.urgent .dot{background:var(--danger);animation:pulse 1.1s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(1.5)}}
+  .card-foot{padding:13px 17px 16px;margin-top:auto;display:flex;justify-content:space-between;align-items:center;gap:12px;border-top:1px solid var(--rule-soft)}
+  .metric{font-size:11.5px;color:var(--ink-soft)}
+  .metric b{font-family:var(--mono);color:var(--ink);font-weight:600}
+  .bidbtn{background:var(--treasury);color:#fff;border:0;border-radius:8px;padding:9px 15px;font-weight:600;font-size:13px}
+  .bidbtn:hover{filter:brightness(1.08)}
+  .rmeter{height:5px;background:var(--rule-soft);border-radius:3px;overflow:hidden;margin-top:6px}
+  .rmeter > i{display:block;height:100%;background:var(--treasury);border-radius:3px}
+
+  /* ---- generic panel ---- */
+  .panel{background:var(--surface);border:1px solid var(--rule);border-radius:12px;box-shadow:var(--shadow)}
+  .grid2{display:grid;grid-template-columns:1.35fr 1fr;gap:18px;align-items:start}
+  @media(max-width:840px){.grid2{grid-template-columns:1fr}}
+  .p-head{padding:15px 18px;border-bottom:1px solid var(--rule);display:flex;justify-content:space-between;align-items:center;gap:12px}
+  .p-title{font-weight:700;font-size:14px}
+  .p-body{padding:18px}
+
+  /* ---- timeline ---- */
+  .tl{position:relative;margin:6px 0 6px 8px;padding-left:26px}
+  .tl:before{content:"";position:absolute;left:6px;top:4px;bottom:4px;width:2px;background:var(--rule)}
+  .step{position:relative;padding:0 0 20px}
+  .step:last-child{padding-bottom:0}
+  .step .node{position:absolute;left:-26px;top:1px;width:14px;height:14px;border-radius:50%;background:var(--surface);border:2px solid var(--treasury)}
+  .step.anchor .node{background:var(--ink);border-color:var(--ink)}
+  .step.target .node{background:var(--amber);border-color:var(--amber)}
+  .step .d{font-family:var(--mono);font-size:12px;font-weight:600}
+  .step .h{font-weight:600;font-size:13.5px;margin-top:1px}
+  .step .m{font-size:12px;color:var(--ink-soft)}
+
+  /* ---- checklist ---- */
+  .chk{list-style:none;margin:0;padding:0}
+  .chk li{display:flex;gap:11px;padding:11px 0;border-bottom:1px solid var(--rule-soft)}
+  .chk li:last-child{border-bottom:0}
+  .tick{flex:none;width:20px;height:20px;border-radius:6px;display:grid;place-items:center;font-size:12px;font-weight:700;color:#fff;margin-top:1px}
+  .tick.y{background:var(--ok)} .tick.n{background:var(--danger)} .tick.i{background:#2b3f52}
+  .chk .ct{font-weight:600;font-size:13px}
+  .chk .cm{font-size:11.5px;color:var(--ink-soft)}
+  .chk .ref{font-family:var(--mono);font-size:10px;color:var(--treasury);background:var(--ok-bg);padding:1px 5px;border-radius:4px;margin-left:6px;white-space:nowrap}
+
+  /* ---- bid panel ---- */
+  .field{margin-bottom:14px}
+  .field label{display:block;font-size:12px;font-weight:600;margin-bottom:5px}
+  .field .hint{font-size:11px;color:var(--ink-soft);font-weight:400}
+  .field input[type=number],.field input[type=text]{width:100%;font-family:var(--mono);font-size:15px;padding:9px 11px;border:1px solid var(--rule);border-radius:8px;background:#fff}
+  .seg{display:inline-flex;border:1px solid var(--rule);border-radius:8px;overflow:hidden}
+  .seg button{background:#fff;border:0;padding:7px 13px;font-size:12.5px;font-weight:500;color:var(--ink-soft);border-right:1px solid var(--rule)}
+  .seg button:last-child{border-right:0}
+  .seg button.on{background:var(--ink);color:#fff}
+  .note{font-size:11.5px;color:var(--ink-soft);background:var(--paper);border:1px solid var(--rule-soft);border-radius:8px;padding:10px 12px}
+
+  /* ---- states grid ---- */
+  .states{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:8px}
+  .st{border:1px solid var(--rule);border-radius:9px;padding:10px 11px;background:var(--surface);font-size:12.5px}
+  .st .sn{font-weight:600}
+  .st .ss{font-family:var(--mono);font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;margin-top:3px}
+  .st.live{border-color:var(--treasury);box-shadow:0 0 0 1px var(--treasury) inset}
+  .st.live .ss{color:var(--treasury)}
+  .st.queued .ss{color:var(--amber)}
+  .st.idle{opacity:.6} .st.idle .ss{color:var(--ink-soft)}
+
+  /* ---- assumptions table ---- */
+  .atable{width:100%;border-collapse:collapse}
+  .atable th{text-align:left;font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);font-weight:500;padding:8px 10px;border-bottom:1px solid var(--rule)}
+  .atable td{padding:11px 10px;border-bottom:1px solid var(--rule-soft);vertical-align:top}
+  .atable input[type=number]{width:74px;font-family:var(--mono);font-size:14px;padding:5px 7px;border:1px solid var(--rule);border-radius:6px;text-align:right}
+  .stt{font-family:var(--mono);font-size:9.5px;font-weight:500;letter-spacing:.07em;text-transform:uppercase;padding:2px 6px;border-radius:5px;white-space:nowrap}
+  .stt.v{background:var(--amber-bg);color:var(--amber)}
+  .stt.a{background:#E4EAF3;color:#2f4a72}
+  .stt.o{background:#EAE3F1;color:#5a3d78}
+  .stt.ok{background:var(--ok-bg);color:var(--treasury)}
+  .cite{font-family:var(--mono);font-size:10.5px;color:var(--ink-soft)}
+
+  .banner{border-radius:10px;padding:12px 15px;font-size:12.5px;display:flex;gap:10px;align-items:flex-start}
+  .banner.warn{background:var(--amber-bg);border:1px solid #e6c48f;color:#7a4d12}
+  .banner.info{background:#E7EEF6;border:1px solid #c5d6ea;color:#2f4a72}
+  .banner b{font-weight:700}
+  .kicker{font-family:var(--mono);font-size:11px;color:var(--ink-soft)}
+  .muted{color:var(--ink-soft)}
+  .pill{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;border:1px solid var(--rule);border-radius:20px;padding:3px 9px;color:var(--ink-soft)}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-in">
+    <div class="wordmark">CapStack <small>prototype</small></div>
+    <div class="spacer"></div>
+    <div class="ctl">
+      <span class="ctl-label">Wedge</span>
+      <div class="switch" id="wedgeSwitch">
+        <button data-wedge="A" class="on">A · Loan-rate</button>
+        <button data-wedge="B">B · GIC yield</button>
+      </div>
+    </div>
+    <div class="ctl">
+      <span class="ctl-label">Jurisdiction</span>
+      <div class="switch" id="jurSwitch">
+        <button data-jur="CA" class="on amberish">California · CTCAC</button>
+        <button data-jur="ALL">50 states + territories</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<nav class="tabs" id="tabs">
+  <button class="tab on" data-tab="exchange"><span class="n">01</span> Exchange</button>
+  <button class="tab" data-tab="auction"><span class="n">02</span> Auction</button>
+  <button class="tab" data-tab="clocks"><span class="n">03</span> Two clocks</button>
+  <button class="tab" data-tab="assumptions"><span class="n">04</span> Assumptions</button>
+</nav>
+
+<main class="wrap">
+
+  <!-- ============ EXCHANGE ============ -->
+  <section class="view on" id="exchange">
+    <div class="section-head">
+      <div>
+        <div class="eyebrow" id="exEyebrow">Live · California volume-cap desk</div>
+        <div class="lede" id="exLede">Capacity that expires if nobody moves it.</div>
+        <div class="sub" id="exSub">Each listing is tax-exempt bond capacity on a clock. When the clock runs out, the next deal pays taxable rates. Sorted by time remaining.</div>
+      </div>
+      <div class="kicker" id="exStamp"></div>
+    </div>
+    <div id="exchangeMain"></div>
+  </section>
+
+  <!-- ============ AUCTION ============ -->
+  <section class="view" id="auction">
+    <div class="section-head">
+      <div>
+        <div class="eyebrow">Auction · back-scheduled from the bond's own date</div>
+        <div class="lede" id="auTitle">—</div>
+        <div class="sub" id="auSub"></div>
+      </div>
+      <button class="pill" id="auPick">▲ pick another listing on the Exchange</button>
+    </div>
+    <div class="grid2">
+      <div>
+        <div class="panel" style="margin-bottom:18px">
+          <div class="p-head"><span class="p-title">Countdown engine — the schedule to close</span><span class="kicker">anchor → target</span></div>
+          <div class="p-body"><div class="tl" id="timeline"></div></div>
+        </div>
+        <div class="panel">
+          <div class="p-head"><span class="p-title">Rulebook engine — compliance checks</span><span class="kicker" id="chkStamp"></span></div>
+          <div class="p-body"><ul class="chk" id="checklist"></ul></div>
+        </div>
+      </div>
+      <div>
+        <div class="panel">
+          <div class="p-head"><span class="p-title" id="bidTitle">Place a bid</span></div>
+          <div class="p-body">
+            <div class="field">
+              <label>Bid format <span class="hint">— both carried into design</span></label>
+              <div class="seg" id="visSeg"><button data-vis="sealed" class="on">Sealed</button><button data-vis="open">Open</button></div>
+            </div>
+            <div class="field">
+              <label id="bidFieldLabel">Your rate</label>
+              <input type="number" id="bidInput" step="0.01" placeholder="0.00">
+              <div class="hint" id="bidRule"></div>
+            </div>
+            <div class="field">
+              <label>Bid deposit <span class="hint">— anti-flake gate</span></label>
+              <div class="seg" id="depSeg"><button data-dep="refundable" class="on">Refundable</button><button data-dep="nonref">Non-refundable</button></div>
+              <div class="hint mono" id="depAmt" style="margin-top:6px"></div>
+            </div>
+            <button class="bidbtn" style="width:100%;padding:11px" id="submitBid">Submit sealed bid</button>
+            <div class="note" style="margin-top:12px" id="bidNote"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CLOCKS ============ -->
+  <section class="view" id="clocks">
+    <div class="section-head">
+      <div>
+        <div class="eyebrow">Countdown engine · timing model</div>
+        <div class="lede">Two clocks, running in opposite directions.</div>
+        <div class="sub">The redemption date anchors everything. One clock counts <b>forward</b> to redeploy freed capacity; the other counts <b>backward</b> to finish the GIC bid in time. Their directions are not yet reconciled against source.</div>
+      </div>
+    </div>
+    <div class="banner warn" style="margin-bottom:18px">
+      <span>⚑</span>
+      <div><b>Reviewed — still unresolved here:</b> a full-text search of the 108-page <b>CTCAC regulations (2026)</b> returned <b>zero</b> hits for carryforward, recycling, redemption, arbitrage, or volume cap. That document governs the tax credit and <b>defers bond timing to CDLAC</b> (referenced 23×). So the clock directions live in the <b>CDLAC Regulations</b> (state) and <b>IRC §146 / Treas. Reg. §1.148‑5</b> (federal) — not the QAP. Values below stay working assumptions until pulled from those sources.</div>
+    </div>
+    <div class="panel"><div class="p-body"><div id="clockViz"></div></div></div>
+  </section>
+
+  <!-- ============ ASSUMPTIONS ============ -->
+  <section class="view" id="assumptions">
+    <div class="section-head">
+      <div>
+        <div class="eyebrow">Rulebook engine · single source of truth</div>
+        <div class="lede">Every uncertain number lives here.</div>
+        <div class="sub">These map to <span class="mono">config/assumptions.yaml</span>. Nothing is hard-coded elsewhere — edit a value and the Exchange, Auction, and Clocks all recompute. Change status to <b>Verified</b> once confirmed against the cited authority.</div>
+      </div>
+    </div>
+    <div class="banner info" style="margin-bottom:16px">
+      <span>ⓘ</span><div>Working assumptions, not legal advice. Each row shows where to verify it. Two are owner-asserted legal positions that need counsel sign-off.</div>
+    </div>
+    <div class="panel"><div class="p-body" style="padding:6px 10px">
+      <table class="atable">
+        <thead><tr><th>Assumption</th><th>Working value</th><th>Status</th><th>Verify against</th></tr></thead>
+        <tbody id="atbody"></tbody>
+      </table>
+    </div></div>
+  </section>
+
+</main>
+
+<script>
+/* ---------------- state (mirrors config/assumptions.yaml) ---------------- */
+const A = {
+  carryforwardYears: 3,
+  recycleMonths: 6,
+  gicMinBidders: 3,
+  depositMin: 500,
+  depositMax: 1000,
+  crossIssuerTransfer: true,
+  platformOperatesAuction: true,
+  issuerInterestRequired: true,
+  deployForwardDays: 60,
+  gicBackwardDays: 60,
+};
+const state = { wedge:'A', jur:'CA', vis:'sealed', dep:'refundable', activeId:null };
+
+/* wedge vocabulary — one place to swap the whole UI's language */
+function V(){
+  return state.wedge==='A'
+    ? {bidder:'bank', bidNoun:'rate', unit:'%', win:'lowest rate wins', reserveWord:'max rate', desk:'volume-cap desk',
+       what:'Banks bid the interest rate to fund the loan.', dir:'below'}
+    : {bidder:'provider', bidNoun:'GIC yield', unit:'%', win:'highest qualifying yield wins', reserveWord:'floor yield', desk:'GIC bidding desk',
+       what:'Providers bid the yield on un-spent bond proceeds.', dir:'above'};
+}
+
+/* ---------------- sample listings (fictional demo data) ---------------- */
+const DAY = 86400000;
+function inDays(n){ return new Date(Date.now()+n*DAY); }
+const LISTINGS = [
+  {id:'sac', issuer:'Sacramento Housing & Redevelopment', place:'Sacramento, CA', type:'recycle', amt:4_100_000, expiry:inDays(9),  reserve:4.35, gicReserve:3.10, bids:0, issuerInterest:true,  redemption:inDays(6)},
+  {id:'sd',  issuer:'San Diego Housing Commission',       place:'San Diego, CA',  type:'recycle', amt:2_500_000, expiry:inDays(41), reserve:4.30, gicReserve:3.05, bids:2, issuerInterest:true,  redemption:inDays(38)},
+  {id:'csc', issuer:'CSCDA (statewide conduit)',          place:'Sacramento, CA', type:'fresh',   amt:8_750_000, expiry:inDays(66), reserve:4.20, gicReserve:3.20, bids:3, issuerInterest:true,  redemption:inDays(63)},
+  {id:'cmf', issuer:'California Municipal Finance Auth.',  place:'Torrance, CA',   type:'carry',   amt:12_000_000,expiry:inDays(118),reserve:4.25, gicReserve:3.15, bids:1, issuerInterest:false, redemption:inDays(115)},
+  {id:'cal', issuer:'CalHFA conduit pool',                place:'Sacramento, CA', type:'carry',   amt:20_000_000,expiry:inDays(203),reserve:4.15, gicReserve:3.25, bids:0, issuerInterest:true,  redemption:inDays(200)},
+];
+const TYPEMETA = {carry:{label:'Carryforward',cls:'b-carry'}, recycle:{label:'Recycled authority',cls:'b-recycle'}, fresh:{label:'Fresh volume cap',cls:'b-fresh'}};
+
+/* ---------------- helpers ---------------- */
+const $ = s=>document.querySelector(s);
+const fmt$ = n => '$'+(n>=1e6 ? (n/1e6).toFixed(n%1e6?2:1)+'M' : n.toLocaleString());
+function cdParts(target){
+  let ms = Math.max(0, target - Date.now());
+  const d = Math.floor(ms/DAY); ms-=d*DAY;
+  const h = Math.floor(ms/3.6e6); ms-=h*3.6e6;
+  const m = Math.floor(ms/6e4); ms-=m*6e4;
+  const s = Math.floor(ms/1000);
+  return {d,h,m,s};
+}
+const pad=n=>String(n).padStart(2,'0');
+function cdText(t){ const {d,h,m,s}=cdParts(t); return d+'d '+pad(h)+':'+pad(m)+':'+pad(s); }
+function fmtDate(dt){ return dt.toLocaleDateString('en-US',{month:'short',day:'numeric'}); }
+
+/* ---------------- EXCHANGE ---------------- */
+function renderExchange(){
+  const v=V();
+  $('#exEyebrow').textContent = 'Live · California '+v.desk;
+  $('#exStamp').textContent = 'wedge '+state.wedge+' · '+v.win;
+  const main = $('#exchangeMain');
+
+  if(state.jur==='ALL'){ renderStates(main); return; }
+
+  const sorted=[...LISTINGS].sort((a,b)=>a.expiry-b.expiry);
+  main.innerHTML = '<div class="board">'+sorted.map(l=>{
+    const tm=TYPEMETA[l.type];
+    const urgent = (l.expiry-Date.now()) < 14*DAY;
+    const reserve = state.wedge==='A'? l.reserve : l.gicReserve;
+    const filled = Math.min(1, l.bids/A.gicMinBidders);
+    return `<article class="card">
+      <div class="card-top">
+        <div class="card-row">
+          <div><div class="issuer">${l.issuer}</div><div class="place">${l.place}</div></div>
+          <span class="badge ${tm.cls}">${tm.label}</span>
+        </div>
+        <div class="amt">${fmt$(l.amt)} <small>tax-exempt</small></div>
+      </div>
+      <div class="clock ${urgent?'urgent':''}">
+        <span class="dot"></span>
+        <div><div class="lbl">${urgent?'expires soon':'expires in'}</div>
+        <div class="t mono" data-cd="${l.expiry.getTime()}">${cdText(l.expiry)}</div></div>
+      </div>
+      <div class="card-foot">
+        <div class="metric">${v.reserveWord} <b>${reserve.toFixed(2)}%</b>
+          <div class="metric" style="margin-top:2px">${l.bids}/${A.gicMinBidders} bona-fide ${v.bidder}s</div>
+          <div class="rmeter"><i style="width:${filled*100}%"></i></div>
+        </div>
+        <button class="bidbtn" data-open="${l.id}">Bid</button>
+      </div>
+    </article>`;
+  }).join('')+'</div>';
+
+  main.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>openAuction(b.dataset.open));
+}
+
+/* ---------------- 50 STATES + TERRITORIES ---------------- */
+const STATES = ["AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"];
+const TERRITORIES = ["DC","PR","GU","VI","AS","MP"];
+function renderStates(main){
+  const queued = new Set(["NY","TX","FL","MA"]); // illustrative next-in-line
+  const chip = (code,isTerr)=>{
+    let cls='idle', status='not started';
+    if(code==='CA'){cls='live';status='live';}
+    else if(queued.has(code)){cls='queued';status='queued';}
+    return `<div class="st ${cls}"><div class="sn">${code}${isTerr?' ·':''}</div><div class="ss">${status}</div></div>`;
+  };
+  main.innerHTML = `
+    <div class="banner info" style="margin-bottom:16px"><span>ⓘ</span><div>
+      One rulebook, ingested per jurisdiction. California is live; each additional state or territory is added by parsing its QAP + bond-allocation rules into the same machine-readable format — <b>the unique unified fashion</b>. Federal windows (carryforward, recycle, GIC bidding) are shared across all.
+    </div></div>
+    <div class="eyebrow" style="margin-bottom:8px">States</div>
+    <div class="states">${STATES.map(c=>chip(c,false)).join('')}</div>
+    <div class="eyebrow" style="margin:20px 0 8px">Territories &amp; DC</div>
+    <div class="states">${TERRITORIES.map(c=>chip(c,true)).join('')}</div>`;
+}
+
+/* ---------------- AUCTION ---------------- */
+function openAuction(id){
+  state.activeId=id; selectTab('auction'); renderAuction();
+}
+function renderAuction(){
+  const v=V();
+  const l = LISTINGS.find(x=>x.id===state.activeId) || LISTINGS[1];
+  state.activeId=l.id;
+  const tm=TYPEMETA[l.type];
+  $('#auTitle').textContent = fmt$(l.amt)+' · '+tm.label;
+  $('#auSub').innerHTML = `${l.issuer} — ${l.place}. ${v.what} <span class="pill">${v.win}</span>`;
+
+  /* --- back-schedule from redemption anchor --- */
+  const anchor = l.redemption;
+  const target = new Date(anchor.getTime() + A.deployForwardDays*DAY);
+  const steps = [
+    {cls:'anchor', d:fmtDate(anchor), h:'Bond redemption', m:'Capacity comes free. Every date below is derived from this anchor.'},
+    {cls:'', d:fmtDate(new Date(anchor.getTime()+7*DAY)),  h:'Listing posted, '+v.bidder+'s notified', m:'Watchlists matched; solicitation opens.'},
+    {cls:'', d:fmtDate(new Date(anchor.getTime()+21*DAY)), h:'Bids due', m:'Sealed or open; reserve enforced; min '+A.gicMinBidders+' bona-fide bids.'},
+    {cls:'', d:fmtDate(new Date(anchor.getTime()+35*DAY)), h:'Award + compliance certificate', m:'Winning '+v.bidder+' locked; evidence-of-competition generated.'},
+    {cls:'', d:fmtDate(new Date(anchor.getTime()+50*DAY)), h:'Docs + counsel sign-off', m:'Bond counsel confirms the file.'},
+    {cls:'target', d:fmtDate(target), h:'Target close', m:'Next deal closes / proceeds redeployed — within the '+A.deployForwardDays+'-day window.'},
+  ];
+  $('#timeline').innerHTML = steps.map(s=>`<div class="step ${s.cls}"><span class="node"></span>
+    <div class="d mono">${s.d}</div><div class="h">${s.h}</div><div class="m">${s.m}</div></div>`).join('');
+
+  /* --- rulebook checklist --- */
+  const reserve = state.wedge==='A'? l.reserve : l.gicReserve;
+  const withinRecycle = l.type!=='recycle' ? null : true; // demo: assume within window
+  const items = [
+    {s:'y', t:'Cross-issuer transfer permitted', m:'Capacity may move between issuers — this is a true exchange.', ref:'legal_foundations'},
+    {s: A.crossIssuerTransfer?'y':'n', t:'Jurisdiction match', m:'Listing is in California; rulebook loaded for CTCAC / CDLAC.', ref:'jurisdiction=CA'},
+    l.type==='recycle'
+      ? {s: (A.issuerInterestRequired ? (l.issuerInterest?'y':'n') : 'i'), t:'Issuer-has-interest (recycled authority)',
+         m: l.issuerInterest?'Issuer retains the required interest; borrower need not.':'Issuer lacks the required interest — pairing blocked.', ref:'recycle rule'}
+      : {s:'i', t:'Issuer-has-interest', m:'Not applicable — this is '+tm.label.toLowerCase()+', not recycled authority.', ref:'n/a'},
+    l.type==='recycle'
+      ? {s:'y', t:'Within '+A.recycleMonths+'-month recycle window', m:'Re-issued without new volume cap; no new 4% credits.', ref:'IRC §146(i)(6)'}
+      : {s:'y', t:'Within capacity window', m: (l.type==='carry'?A.carryforwardYears+'-yr carryforward':'current-year')+' capacity, unexpired.', ref: l.type==='carry'?'IRC §146(f)':'IRC §146'},
+    {s: l.bids>=A.gicMinBidders?'y':'n', t:'Minimum bona-fide bidders', m:l.bids+' of '+A.gicMinBidders+' received — no material financial interest.', ref:'Treas.Reg §1.148-5'},
+    {s:'i', t:'Reserve set · no buy-it-now', m:v.reserveWord+' '+reserve.toFixed(2)+'%. Genuine competition is required — award only if reserve is met.', ref:'auction rule'},
+  ];
+  $('#checklist').innerHTML = items.map(i=>`<li><span class="tick ${i.s}">${i.s==='y'?'✓':i.s==='n'?'✕':'–'}</span>
+    <div><div class="ct">${i.t}<span class="ref">${i.ref}</span></div><div class="cm">${i.m}</div></div></li>`).join('');
+  $('#chkStamp').textContent = 'reads config/assumptions.yaml';
+
+  /* --- bid panel --- */
+  $('#bidTitle').textContent = 'Place a '+v.bidNoun+' bid';
+  $('#bidFieldLabel').textContent = 'Your '+v.bidNoun+' ('+v.unit+')';
+  $('#bidRule').textContent = v.win.charAt(0).toUpperCase()+v.win.slice(1)+'. Must beat the '+v.reserveWord+' of '+reserve.toFixed(2)+'% or there is no award.';
+  $('#bidInput').placeholder = reserve.toFixed(2);
+  $('#bidNote').innerHTML = 'Proxy bidding supported — set your best '+v.bidNoun+' and the desk bids on your behalf up to it. Win a deal and a success fee is invoiced automatically; issuers list free.';
+  syncSegs();
+}
+
+/* ---------------- TWO CLOCKS ---------------- */
+function renderClocks(){
+  const anchorX=55; // % position of redemption on the axis
+  const el=$('#clockViz');
+  el.innerHTML = `
+   <div style="position:relative;height:150px;margin:26px 10px 10px">
+     <div style="position:absolute;left:0;right:0;top:74px;height:2px;background:var(--rule)"></div>
+     <div style="position:absolute;left:${anchorX}%;top:56px;transform:translateX(-50%);text-align:center">
+        <div class="mono" style="font-size:11px;font-weight:600">REDEMPTION</div>
+        <div style="width:16px;height:16px;border-radius:50%;background:var(--ink);margin:5px auto 0"></div>
+     </div>
+     <!-- forward deploy clock -->
+     <div style="position:absolute;left:${anchorX}%;right:6%;top:20px;height:24px">
+        <div style="position:absolute;inset:0;border:1.5px solid var(--amber);border-left:0;border-radius:0 12px 12px 0;background:var(--amber-bg)"></div>
+        <div class="mono" style="position:absolute;left:10px;top:3px;font-size:11px;color:var(--amber);font-weight:600">deploy → forward ${A.deployForwardDays}d ▶</div>
+     </div>
+     <!-- backward gic clock -->
+     <div style="position:absolute;left:8%;right:${100-anchorX}%;top:104px;height:24px">
+        <div style="position:absolute;inset:0;border:1.5px solid var(--treasury);border-right:0;border-radius:12px 0 0 12px;background:var(--ok-bg)"></div>
+        <div class="mono" style="position:absolute;right:10px;top:3px;font-size:11px;color:var(--treasury);font-weight:600">◀ GIC bid ← backward ${A.gicBackwardDays}d</div>
+     </div>
+   </div>
+   <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:10px">
+     <div class="note"><b>Deploy window</b> — counts <b>forward</b> from redemption. Freed capacity must land in the next deal within ${A.deployForwardDays} days. Worked example: redemption Apr 1 → target Jun 1.</div>
+     <div class="note"><b>GIC bid completion</b> — counts <b>backward</b>. The competitive GIC bid must finish ${A.gicBackwardDays} days <i>before</i> the reference date. Direction + reference date pending source review.</div>
+   </div>`;
+}
+
+/* ---------------- ASSUMPTIONS TABLE ---------------- */
+const AROWS = [
+  {k:'carryforwardYears', label:'Carryforward window', unit:'years', st:'v', cite:'IRC §146(f); Form 8328', note:'owner recollection 4 yr — reconcile'},
+  {k:'recycleMonths', label:'Recycle window', unit:'months', st:'v', cite:'IRC §146(i)(6)'},
+  {k:'gicMinBidders', label:'Min. bona-fide bidders', unit:'bids', st:'v', cite:'Treas. Reg. §1.148-5(d)(6)'},
+  {k:'deployForwardDays', label:'Deploy window (forward)', unit:'days', st:'v', cite:'CDLAC / CTCAC — verify'},
+  {k:'gicBackwardDays', label:'GIC bid deadline (backward)', unit:'days', st:'v', cite:'arbitrage regs — verify direction'},
+  {k:'depositMin', label:'Bid deposit — low', unit:'USD', st:'o', cite:'design choice'},
+];
+const LEGAL = [
+  {label:'Cross-issuer capacity transfer', val:'true → true marketplace', st:'a', cite:'IRC §146 — counsel sign-off'},
+  {label:'Software may operate the auction', val:'true · in-house SEC compliance expert (active license)', st:'ok', cite:'licensed oversight in place'},
+  {label:'Reserve must be met · no buy-it-now', val:'true / false', st:'ok', cite:'settled design + compliance'},
+];
+const STT = {v:'Assumed [V]', a:'Owner-asserted', o:'Design-open', ok:'Verified'};
+function renderAssumptions(){
+  const num = AROWS.map(r=>`<tr>
+    <td><b>${r.label}</b>${r.note?`<div class="cite">${r.note}</div>`:''}</td>
+    <td><input type="number" data-a="${r.k}" value="${A[r.k]}" step="${r.unit==='USD'?50:1}"> <span class="muted">${r.unit}</span></td>
+    <td><span class="stt ${r.st}">${STT[r.st]}</span></td>
+    <td class="cite">${r.cite}</td></tr>`).join('');
+  const leg = LEGAL.map(r=>`<tr>
+    <td><b>${r.label}</b></td><td class="mono" style="font-size:12px">${r.val}</td>
+    <td><span class="stt ${r.st}">${STT[r.st]}</span></td><td class="cite">${r.cite}</td></tr>`).join('');
+  $('#atbody').innerHTML = num + `<tr><td colspan="4" style="padding-top:16px"><div class="eyebrow">Load-bearing legal positions</div></td></tr>` + leg;
+  $('#atbody').querySelectorAll('input[data-a]').forEach(inp=>{
+    inp.oninput = ()=>{ const val=parseFloat(inp.value); if(!isNaN(val)){ A[inp.dataset.a]=val; recomputeAll(); } };
+  });
+}
+
+/* ---------------- segment toggles (bid panel) ---------------- */
+function syncSegs(){
+  $('#visSeg').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.vis===state.vis));
+  $('#depSeg').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.dep===state.dep));
+  $('#submitBid').textContent = 'Submit '+state.vis+' bid';
+  const refundTxt = state.dep==='refundable' ? 'returned on a genuine bid' : 'forfeited if you walk after winning';
+  $('#depAmt').textContent = '$'+A.depositMin+'–$'+A.depositMax+' · '+refundTxt;
+}
+
+/* ---------------- tabs & wiring ---------------- */
+function selectTab(name){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.tab===name));
+  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id===name));
+  if(name==='auction') renderAuction();
+  if(name==='clocks') renderClocks();
+  if(name==='assumptions') renderAssumptions();
+}
+function recomputeAll(){
+  renderExchange();
+  if($('#auction').classList.contains('on')) renderAuction();
+  if($('#clocks').classList.contains('on')) renderClocks();
+}
+
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>selectTab(t.dataset.tab));
+$('#auPick').onclick=()=>selectTab('exchange');
+$('#wedgeSwitch').querySelectorAll('button').forEach(b=>b.onclick=()=>{
+  state.wedge=b.dataset.wedge;
+  $('#wedgeSwitch').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));
+  recomputeAll();
+});
+$('#jurSwitch').querySelectorAll('button').forEach(b=>b.onclick=()=>{
+  state.jur=b.dataset.jur;
+  $('#jurSwitch').querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.classList.toggle('amberish',x===b);});
+  renderExchange();
+});
+$('#visSeg').querySelectorAll('button').forEach(b=>b.onclick=()=>{state.vis=b.dataset.vis;syncSegs();});
+$('#depSeg').querySelectorAll('button').forEach(b=>b.onclick=()=>{state.dep=b.dataset.dep;syncSegs();});
+$('#submitBid').onclick=()=>{ $('#bidNote').innerHTML='<b>Prototype</b> — no bid is placed. In production this would record a sealed/open bid, hold the deposit, and update the min-bidder count.'; };
+
+/* live countdowns */
+setInterval(()=>{ document.querySelectorAll('[data-cd]').forEach(el=>{
+  const t=+el.dataset.cd; el.textContent=cdText(new Date(t));
+}); }, 1000);
+
+/* stamp + first render */
+$('#exStamp').textContent='';
+renderExchange();
+state.activeId='sd';
+</script>
+</body>
+</html>

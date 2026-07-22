@@ -1,0 +1,16 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+
+# Python (helper scripts)
+__pycache__/
+*.pyc
+
+# Logs / env
+*.log
+.env
+.env.*
+
+# Node (none yet, but future-proof)
+node_modules/
