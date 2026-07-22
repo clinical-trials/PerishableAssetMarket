@@ -204,6 +204,10 @@
   .vswitch.nyalloc button{font-size:12px}
   .nydesk-note{font-size:12px;color:var(--ink-soft);margin-top:10px;line-height:1.45}
   .assump-jur{font-size:12.5px;color:var(--ink);background:var(--ok-bg);border:1px solid #bfd8cd;border-radius:8px;padding:10px 13px;margin-bottom:14px;line-height:1.5}
+  .src-item{border:1px solid var(--rule-soft);border-radius:9px;padding:11px 13px;margin-bottom:9px;background:#fff}
+  .src-item:last-child{margin-bottom:0}
+  .src-item .ny-qap{margin-bottom:2px}
+  .src-head{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--treasury);font-weight:600;margin-bottom:9px}
 
   /* ---------------- mobile ---------------- */
   @media (max-width: 760px){
@@ -371,6 +375,7 @@
       <span>ⓘ</span><div>Working assumptions, not legal advice. Each row shows where to verify it. Two are owner-asserted legal positions that need counsel sign-off.</div>
     </div>
     <div class="assump-jur" id="assumpJur"></div>
+    <div class="panel" style="margin-bottom:16px"><div class="p-body"><div id="assumpSources"></div></div></div>
     <div class="panel">
       <div class="p-head" style="gap:12px;flex-wrap:wrap">
         <span class="p-title">Assumption values</span>
@@ -748,11 +753,33 @@ function updateApplyState(){
   if(n) setStatus(n+' pending — not yet live');
   else setStatus(lastApplied ? ('applied '+lastApplied+(storageOK?' · saved':'')) : 'no changes', !!lastApplied);
 }
+function assumpSourcesHTML(){
+  if(state.jur==='NY'){
+    const items = NY_MARKETS.map(m=>`<div class="src-item"><a class="ny-qap" href="${m.qap}" target="_blank" rel="noopener">${m.name} QAP ↗</a><div class="ny-cite">${m.cite}</div></div>`).join('');
+    return `<div class="src-head">Source documents · New York</div>${items}
+      <div class="src-item"><span class="stt v">FEDERAL — SHARED</span><div class="ny-cite">IRC §146(f) &amp; Form 8328 (carryforward) · IRC §146(i)(6) (recycling) · Treas. Reg. §1.148-5(d)(6) (GIC competitive-bid safe harbor). Same overlay every jurisdiction uses.</div></div>`;
+  }
+  return `<div class="src-head">Source documents · California</div>
+    <div class="src-item">
+      <a class="ny-qap" href="https://www.treasurer.ca.gov/sites/default/files/2026-03/regulations.pdf" target="_blank" rel="noopener">CTCAC 2026 Regulations — 108 pp (PDF) ↗</a>
+      <div class="ny-cite">Source: California Tax Credit Allocation Committee (CTCAC), "2026 Regulations," 108 pp — treasurer.ca.gov/sites/default/files/2026-03/regulations.pdf. Full-text reviewed 2026-07-21: governs the LIHTC tax credit and defers bond timing to CDLAC (referenced 23×). Sourced here → readiness-to-proceed 180/194 days (§10328c) and the "CDLAC bond issuance deadline" (§10326). PDF downloaded &amp; verified 2026-07-21.</div>
+    </div>
+    <div class="src-item">
+      <span class="stt v">PENDING</span><span style="font-weight:600;font-size:13px;margin-left:6px">CDLAC Regulations</span>
+      <div class="ny-cite">California Debt Limit Allocation Committee (CDLAC) Regulations — governs private-activity bond volume-cap timing (the two clock directions). A separate document from the CTCAC QAP; not yet ingested. The pending source for the [V] clock values.</div>
+    </div>
+    <div class="src-item">
+      <span class="stt v">FEDERAL — SHARED</span>
+      <div class="ny-cite">IRC §146(f) &amp; Form 8328 (carryforward) · IRC §146(i)(6) (recycling) · Treas. Reg. §1.148-5(d)(6) (GIC competitive-bid safe harbor). Same overlay every jurisdiction uses.</div>
+    </div>`;
+}
 function renderAssumptions(){
   const aj=$('#assumpJur');
   if(aj) aj.innerHTML = (state.jur==='NY')
     ? '<b>Active jurisdiction: New York.</b> '+JUR.NY.uniq+' State timing is <b>ASSUMED</b> pending QAP + statute ingestion — QAP links &amp; citations are on the New York desk. The federal overlay below is shared with California.'
     : '<b>Active jurisdiction: California.</b> '+JUR.CA.uniq+' Sourced: readiness-to-proceed 180/194 days (CTCAC §10328c); bond-issuance deadline set by CDLAC. The federal overlay below is shared with New York.';
+  const asrc=$('#assumpSources');
+  if(asrc) asrc.innerHTML = assumpSourcesHTML();
   const num = AROWS.map(r=>{
     const v = (r.k in pending) ? pending[r.k] : A[r.k];
     return `<tr>
