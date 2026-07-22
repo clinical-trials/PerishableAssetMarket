@@ -82,6 +82,10 @@
   .metric b{font-family:var(--mono);color:var(--ink);font-weight:600}
   .bidbtn{background:var(--treasury);color:#fff;border:0;border-radius:8px;padding:9px 15px;font-weight:600;font-size:13px}
   .bidbtn:hover{filter:brightness(1.08)}
+  .bidbtn:disabled{opacity:.4;cursor:default;filter:none}
+  .btn-ghost{background:#fff;border:1px solid var(--rule);color:var(--ink);border-radius:8px;padding:8px 13px;font-weight:600;font-size:12.5px}
+  .btn-ghost:hover{background:var(--paper)}
+  .atable input.changed{border-color:var(--amber);background:var(--amber-bg);color:var(--amber)}
   .rmeter{height:5px;background:var(--rule-soft);border-radius:3px;overflow:hidden;margin-top:6px}
   .rmeter > i{display:block;height:100%;background:var(--treasury);border-radius:3px}
 
@@ -271,18 +275,29 @@
       <div>
         <div class="eyebrow">Rulebook engine · single source of truth</div>
         <div class="lede">Every uncertain number lives here.</div>
-        <div class="sub">These map to <span class="mono">config/assumptions.yaml</span>. Nothing is hard-coded elsewhere — edit a value and the Exchange, Auction, and Clocks all recompute. Change status to <b>Verified</b> once confirmed against the cited authority.</div>
+        <div class="sub">These map to <span class="mono">config/assumptions.yaml</span>. Edit a value, then <b>Apply changes</b> to push it across the Exchange, Auction, and Clocks at once. Applied values persist locally and can be exported back to the YAML as we finalize.</div>
       </div>
     </div>
     <div class="banner info" style="margin-bottom:16px">
       <span>ⓘ</span><div>Working assumptions, not legal advice. Each row shows where to verify it. Two are owner-asserted legal positions that need counsel sign-off.</div>
     </div>
-    <div class="panel"><div class="p-body" style="padding:6px 10px">
-      <table class="atable">
-        <thead><tr><th>Assumption</th><th>Working value</th><th>Status</th><th>Verify against</th></tr></thead>
-        <tbody id="atbody"></tbody>
-      </table>
-    </div></div>
+    <div class="panel">
+      <div class="p-head" style="gap:12px;flex-wrap:wrap">
+        <span class="p-title">Assumption values</span>
+        <div style="flex:1"></div>
+        <span id="aStatus" class="kicker">no changes</span>
+        <button class="btn-ghost" id="aReset">Reset to defaults</button>
+        <button class="btn-ghost" id="aExport">Copy as YAML</button>
+        <button class="bidbtn" id="aApply" disabled>Apply changes</button>
+      </div>
+      <div class="p-body" style="padding:6px 10px">
+        <table class="atable">
+          <thead><tr><th>Assumption</th><th>Working value</th><th>Status</th><th>Verify against</th></tr></thead>
+          <tbody id="atbody"></tbody>
+        </table>
+      </div>
+      <div id="aExportOut" style="display:none;padding:0 18px 18px"></div>
+    </div>
   </section>
 
 </main>
@@ -302,6 +317,12 @@ const A = {
   gicBackwardDays: 60,
 };
 const state = { wedge:'A', jur:'CA', vis:'sealed', dep:'refundable', activeId:null };
+
+/* ---- assumptions: staged-edit model + persistence ---- */
+const DEFAULTS = {...A};
+const LSKEY = 'capstack.assumptions.v1';
+let pending = {}, lastApplied = '', storageOK = true;
+try { const s = localStorage.getItem(LSKEY); if(s) Object.assign(A, JSON.parse(s)); } catch(e){ storageOK = false; }
 
 /* wedge vocabulary — one place to swap the whole UI's language */
 function V(){
@@ -499,19 +520,71 @@ const LEGAL = [
   {label:'Reserve must be met · no buy-it-now', val:'true / false', st:'ok', cite:'settled design + compliance'},
 ];
 const STT = {v:'Assumed [V]', a:'Owner-asserted', o:'Design-open', ok:'Verified'};
+function nowStr(){ try{ return new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}); }catch(e){ return 'just now'; } }
+function persist(){ try{ const o={}; AROWS.forEach(r=>o[r.k]=A[r.k]); localStorage.setItem(LSKEY, JSON.stringify(o)); }catch(e){ storageOK=false; } }
+function setStatus(txt, ok){ const st=$('#aStatus'); if(!st) return; st.textContent=txt; st.style.color = ok?'var(--treasury)':(Object.keys(pending).length?'var(--amber)':''); }
+function updateApplyState(){
+  const n=Object.keys(pending).length, btn=$('#aApply'); if(!btn) return;
+  btn.disabled = n===0;
+  btn.textContent = n ? ('Apply '+n+' change'+(n>1?'s':'')) : 'Apply changes';
+  if(n) setStatus(n+' pending — not yet live');
+  else setStatus(lastApplied ? ('applied '+lastApplied+(storageOK?' · saved':'')) : 'no changes', !!lastApplied);
+}
 function renderAssumptions(){
-  const num = AROWS.map(r=>`<tr>
-    <td><b>${r.label}</b>${r.note?`<div class="cite">${r.note}</div>`:''}</td>
-    <td><input type="number" data-a="${r.k}" value="${A[r.k]}" step="${r.unit==='USD'?50:1}"> <span class="muted">${r.unit}</span></td>
-    <td><span class="stt ${r.st}">${STT[r.st]}</span></td>
-    <td class="cite">${r.cite}</td></tr>`).join('');
+  const num = AROWS.map(r=>{
+    const v = (r.k in pending) ? pending[r.k] : A[r.k];
+    return `<tr>
+      <td><b>${r.label}</b>${r.note?`<div class="cite">${r.note}</div>`:''}</td>
+      <td><input type="number" data-a="${r.k}" value="${v}" step="${r.unit==='USD'?50:1}" class="${(r.k in pending)?'changed':''}"> <span class="muted">${r.unit}</span></td>
+      <td><span class="stt ${r.st}">${STT[r.st]}</span></td>
+      <td class="cite">${r.cite}</td></tr>`;
+  }).join('');
   const leg = LEGAL.map(r=>`<tr>
     <td><b>${r.label}</b></td><td class="mono" style="font-size:12px">${r.val}</td>
     <td><span class="stt ${r.st}">${STT[r.st]}</span></td><td class="cite">${r.cite}</td></tr>`).join('');
   $('#atbody').innerHTML = num + `<tr><td colspan="4" style="padding-top:16px"><div class="eyebrow">Load-bearing legal positions</div></td></tr>` + leg;
   $('#atbody').querySelectorAll('input[data-a]').forEach(inp=>{
-    inp.oninput = ()=>{ const val=parseFloat(inp.value); if(!isNaN(val)){ A[inp.dataset.a]=val; recomputeAll(); } };
+    inp.oninput = ()=>{
+      const k=inp.dataset.a, val=parseFloat(inp.value);
+      if(isNaN(val)) return;
+      if(val===A[k]) delete pending[k]; else pending[k]=val;
+      inp.classList.toggle('changed', k in pending);
+      updateApplyState();
+    };
   });
+  updateApplyState();
+}
+function applyAssumptions(){
+  if(!Object.keys(pending).length) return;
+  Object.assign(A, pending); pending={};
+  persist(); lastApplied=nowStr();
+  recomputeAll();       // push new values across Exchange / Auction / Clocks
+  renderAssumptions();
+  setStatus('✓ applied across the site'+(storageOK?' · saved':''), true);
+}
+function resetAssumptions(){
+  Object.assign(A, DEFAULTS); pending={};
+  try{ localStorage.removeItem(LSKEY); }catch(e){}
+  lastApplied=''; recomputeAll(); renderAssumptions();
+  $('#aExportOut').style.display='none';
+  setStatus('reset to defaults', true);
+}
+function exportYAML(){
+  const L=['# CapStack — edited assumption values ('+nowStr()+') — paste into config/assumptions.yaml',
+    'windows:',
+    '  carryforward: { value_years: '+A.carryforwardYears+' }',
+    '  recycle:      { value_months: '+A.recycleMonths+' }',
+    'clocks:',
+    '  deploy_window:      { target_offset_days: '+A.deployForwardDays+' }',
+    '  gic_bid_completion: { offset_days: '+A.gicBackwardDays+' }',
+    'auction_rules:',
+    '  gic_min_bidders: { value: '+A.gicMinBidders+' }',
+    '  bid_deposit:     { amount_usd_range: ['+A.depositMin+', '+A.depositMax+'] }'];
+  const text=L.join('\n');
+  const out=$('#aExportOut'); out.style.display='block';
+  out.innerHTML='<div class="note mono" style="white-space:pre-wrap">'+text.replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</div>';
+  try{ navigator.clipboard.writeText(text); setStatus('YAML copied to clipboard', true); }
+  catch(e){ setStatus('YAML shown below — copy manually', true); }
 }
 
 /* ---------------- segment toggles (bid panel) ---------------- */
@@ -552,6 +625,9 @@ $('#jurSwitch').querySelectorAll('button').forEach(b=>b.onclick=()=>{
 $('#visSeg').querySelectorAll('button').forEach(b=>b.onclick=()=>{state.vis=b.dataset.vis;syncSegs();});
 $('#depSeg').querySelectorAll('button').forEach(b=>b.onclick=()=>{state.dep=b.dataset.dep;syncSegs();});
 $('#submitBid').onclick=()=>{ $('#bidNote').innerHTML='<b>Prototype</b> — no bid is placed. In production this would record a sealed/open bid, hold the deposit, and update the min-bidder count.'; };
+$('#aApply').onclick=applyAssumptions;
+$('#aReset').onclick=resetAssumptions;
+$('#aExport').onclick=exportYAML;
 
 /* live countdowns */
 setInterval(()=>{ document.querySelectorAll('[data-cd]').forEach(el=>{
