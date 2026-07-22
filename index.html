@@ -140,6 +140,24 @@
   .st.live .ss{color:var(--treasury)}
   .st.queued .ss{color:var(--amber)}
   .st.idle{opacity:.6} .st.idle .ss{color:var(--ink-soft)}
+  .st.clickable{cursor:pointer}
+  .st.clickable:hover{border-color:var(--treasury);box-shadow:0 0 0 1px var(--treasury) inset}
+  .st.open{border-color:var(--treasury);box-shadow:0 0 0 1px var(--treasury) inset}
+  .ny-panel{background:var(--surface);border:1px solid var(--treasury);border-radius:12px;box-shadow:var(--shadow);margin-bottom:18px;overflow:hidden}
+  .ny-phead{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--rule);background:var(--ok-bg)}
+  .ny-ptitle{font-weight:700;font-size:14px;color:var(--treasury)}
+  .ny-close{background:transparent;border:0;font-size:14px;color:var(--ink-soft);line-height:1;padding:4px;cursor:pointer}
+  .ny-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;padding:16px}
+  .ny-card{border:1px solid var(--rule);border-radius:10px;padding:13px 14px;cursor:pointer;background:#fff}
+  .ny-card:hover{border-color:var(--treasury)}
+  .ny-card.sel{border-color:var(--treasury);box-shadow:0 0 0 1px var(--treasury) inset;background:var(--ok-bg)}
+  .ny-h{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:5px}
+  .ny-name{font-weight:700;font-size:14px}
+  .ny-full{font-size:12px;color:var(--ink);font-weight:500}
+  .ny-scope{font-size:11.5px;color:var(--ink-soft);margin:3px 0 11px;line-height:1.35}
+  .ny-qap{display:inline-block;font-family:var(--mono);font-size:11px;font-weight:600;color:var(--treasury);text-decoration:none;border:1px solid var(--treasury);border-radius:6px;padding:5px 10px}
+  .ny-qap:hover{background:var(--treasury);color:#fff}
+  .ny-status{padding:0 16px 15px;font-size:12.5px;color:var(--ink-soft)}
 
   /* ---- assumptions table ---- */
   .atable{width:100%;border-collapse:collapse}
@@ -446,22 +464,54 @@ function renderExchange(){
 /* ---------------- 50 STATES + TERRITORIES ---------------- */
 const STATES = ["AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"];
 const TERRITORIES = ["DC","PR","GU","VI","AS","MP"];
+const NY_MARKETS = [
+  {key:'hcr', name:'NYS HCR', full:'Homes &amp; Community Renewal (DHCR / HFA)', scope:'Statewide · 9% + 4%/bond allocator', qap:'https://hcr.ny.gov/qualified-allocation-plan-qap'},
+  {key:'hpd', name:'NYC HPD', full:'Dept. of Housing Preservation &amp; Development', scope:'New York City · credit agency; holds the City of NY QAP', qap:'https://www.nyc.gov/assets/hpd/downloads/pdfs/services/2025-qualified-allocation-plan.pdf'},
+  {key:'hdc', name:'NYC HDC', full:'Housing Development Corporation', scope:'New York City · bond issuer (4%/bond), under the NYC QAP', qap:'https://www.nychdc.com'},
+];
+function nyPanelHTML(){
+  const cards = NY_MARKETS.map(m=>`
+    <div class="ny-card ${state.nyMarket===m.key?'sel':''}" data-nym="${m.key}">
+      <div class="ny-h"><span class="ny-name">${m.name}</span><span class="pill">${state.nyMarket===m.key?'selected':'queued'}</span></div>
+      <div class="ny-full">${m.full}</div>
+      <div class="ny-scope">${m.scope}</div>
+      <a class="ny-qap" href="${m.qap}" target="_blank" rel="noopener">View QAP ↗</a>
+    </div>`).join('');
+  const sel = NY_MARKETS.find(m=>m.key===state.nyMarket);
+  const status = sel
+    ? `<div class="ny-status"><b>Selected: ${sel.name}.</b> Federal overlay is ready; state rules pending QAP ingestion — the same pipeline California used (CTCAC + CDLAC).</div>`
+    : `<div class="ny-status">New York has multiple allocators. Pick a path — each links to that agency's live QAP.</div>`;
+  return `<div class="ny-panel">
+    <div class="ny-phead"><span class="ny-ptitle">New York — pick an allocator</span><button class="ny-close" id="nyClose">✕ close</button></div>
+    <div class="ny-cards">${cards}</div>
+    ${status}
+  </div>`;
+}
 function renderStates(main){
   const queued = new Set(["NY","TX","FL","MA"]); // illustrative next-in-line
   const chip = (code,isTerr)=>{
     let cls='idle', status='not started';
     if(code==='CA'){cls='live';status='live';}
     else if(queued.has(code)){cls='queued';status='queued';}
+    if(code==='NY') return `<div class="st queued clickable${state.nyOpen?' open':''}" data-ny="1"><div class="sn">NY</div><div class="ss" style="color:var(--treasury)">pick ▸</div></div>`;
     return `<div class="st ${cls}"><div class="sn">${code}${isTerr?' ·':''}</div><div class="ss">${status}</div></div>`;
   };
   main.innerHTML = `
     <div class="banner info" style="margin-bottom:16px"><span>ⓘ</span><div>
-      One rulebook, ingested per jurisdiction. California is live; each additional state or territory is added by parsing its QAP + bond-allocation rules into the same machine-readable format — <b>the unique unified fashion</b>. Federal windows (carryforward, recycle, GIC bidding) are shared across all.
+      One rulebook, ingested per jurisdiction. California is live; each additional state or territory is added by parsing its QAP + bond-allocation rules into the same machine-readable format — <b>the unique unified fashion</b>. Federal windows (carryforward, recycle, GIC bidding) are shared across all. <b>NY is interactive</b> — it has multiple allocators.
     </div></div>
+    ${state.nyOpen ? nyPanelHTML() : ''}
     <div class="eyebrow" style="margin-bottom:8px">States</div>
     <div class="states">${STATES.map(c=>chip(c,false)).join('')}</div>
     <div class="eyebrow" style="margin:20px 0 8px">Territories &amp; DC</div>
     <div class="states">${TERRITORIES.map(c=>chip(c,true)).join('')}</div>`;
+  const nyChip = main.querySelector('[data-ny]');
+  if(nyChip) nyChip.onclick = ()=>{ state.nyOpen = !state.nyOpen; renderExchange(); };
+  const nyClose = main.querySelector('#nyClose');
+  if(nyClose) nyClose.onclick = ()=>{ state.nyOpen = false; renderExchange(); };
+  main.querySelectorAll('.ny-card').forEach(card=>{
+    card.onclick = (e)=>{ if(e.target.closest('a.ny-qap')) return; state.nyMarket = card.dataset.nym; renderExchange(); };
+  });
 }
 
 /* ---------------- AUCTION ---------------- */
