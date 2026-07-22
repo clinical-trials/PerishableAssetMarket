@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="CapStack">
+  <rect width="32" height="32" rx="7" fill="#17694F"/>
+  <!-- hourglass frame -->
+  <rect x="9.5" y="6.4" width="13" height="2.4" rx="1.2" fill="#EDF0EC"/>
+  <rect x="9.5" y="23.2" width="13" height="2.4" rx="1.2" fill="#EDF0EC"/>
+  <!-- upper glass: sand still remaining -->
+  <path d="M11 9 L21 9 L16.55 15.4 Z" fill="#EDF0EC"/>
+  <!-- lower glass, faint outline -->
+  <path d="M16 16.6 L21 23 L11 23 Z" fill="#EDF0EC" opacity="0.26"/>
+  <!-- amber sand piling at the bottom -->
+  <path d="M12.4 23 L19.6 23 L16 18.1 Z" fill="#E0932A"/>
+  <!-- the falling grain -->
+  <circle cx="16" cy="17.6" r="1.2" fill="#E0932A"/>
+</svg>
